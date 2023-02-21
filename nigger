@@ -1,0 +1,145 @@
+local localplayer = game.Players.LocalPlayer
+local cam = workspace.CurrentCamera
+local runservice = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+local mouse = localplayer:GetMouse()
+local tween = game:GetService("TweenService")
+local function GetGun(targetcharacter)
+    local gun = targetcharacter:FindFirstChildOfClass("Tool")
+    if not gun or gun == nil then return nil end
+    if gun:FindFirstChild("ShootBBGUI", true) then
+        return gun
+    else
+        return nil
+    end
+end
+
+local function setrainbow(part)
+    task.spawn(function()
+        if RainbowMode == true then
+            while true do
+                part.Color = Color3.fromHSV(tick()%5/5,1,1)
+                task.wait()
+            end
+        end
+    end)
+end
+
+local function getpart()
+    if not (workspace.Ignored:FindFirstChild("MOUSEBEAM")) then
+        local Part = Instance.new("Part", workspace.Ignored)
+        Part.Name = "MOUSEBEAM"
+        Part.Material = "Neon"
+        Part.Color = Color3.fromRGB(0, 0, 255)
+        Part.Transparency = .3
+        Part.CanCollide = false
+        Part.Anchored = true
+        setrainbow(part)
+    end
+    return workspace.Ignored.MOUSEBEAM
+end
+
+local hook
+local commands = {
+    ["hi"] = true,
+    ["ur ugly"] = true,
+}
+local remote = game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest
+hook = hookmetamethod(game, "__namecall", function(...)
+    local Self, a, b = ...
+    if (Self == remote) then
+        print("event fired", a, b)
+        if commands[a] then
+            return nil
+        end
+    end
+    return hook(...)
+end)
+local function UpdateCamera(bool, head, humanoid, position)
+    if bool == true then
+        cam.CameraSubject = humanoid
+        if GetGun(head.Parent) then
+            getpart().Transparency = .3
+            tween:Create(cam, TweenInfo.new(.6), {CFrame = CFrame.new(cam.CFrame.Position, position)}):Play()
+        else
+            getpart().Transparency = 1
+        end
+    else
+        print("unview")
+        cam.CameraSubject = localplayer.character.Humanoid
+        cam.CameraType = "Custom"
+    end
+end
+
+pcall(function()
+    workspace.Ignored.MOUSEBEAM:Destroy()
+end)
+
+if _G.old and _G.old ~= nil then
+    UpdateCamera(false)
+    pcall(function()
+        _G.old:Disconnect()
+    end)
+    _G.old = nil
+end
+if _G.old2 and _G.old2 ~= nil then
+    pcall(function()
+        _G.old2:Disconnect()
+    end)
+    _G.old2 = nil
+    UpdateCamera(false)
+end
+local function GetAimed()
+    if mouse.Target == nil or not mouse.Target then
+        return nil
+    end
+    local character = mouse.Target:FindFirstAncestorOfClass("Model")
+    if character and character:FindFirstChildOfClass("Humanoid") then
+        local humanoid = character:FindFirstChild("Humanoid")
+        local player = game.Players:GetPlayerFromCharacter(character)
+        if (player) then
+            return player
+        else
+            UpdateCamera(false)
+            return nil
+        end
+    else
+        UpdateCamera(false)
+        return nil
+    end
+end
+local targeted = nil
+local function UpdateAimed(user)
+    targeted = user
+end
+_G.old = uis.InputBegan:Connect(function(input, gameprocess)
+    if gameprocess then
+        return
+    end
+    if input.KeyCode == Enum.KeyCode.C then
+        local aa = GetAimed()
+        targeted = GetAimed()
+        if aa ~= nil then
+            UpdateAimed(aa)
+        else
+            UpdateCamera(false)
+        end
+    end
+end)
+
+
+local function SetBEAM(org, pos)
+    local mag = (org - pos).magnitude
+    getpart().Size = Vector3.new(.15, .15, mag * 2)
+    getpart().CFrame = CFrame.new(org, pos) * CFrame.new(0, 0, -mag)
+end
+
+_G.old2 = runservice.RenderStepped:Connect(function()
+    if targeted ~= nil and targeted then
+        local char = targeted.Character
+        local bodyeffects = char.BodyEffects
+        local mousePos = bodyeffects.MousePos
+        task.spawn(function() SetBEAM(char.Head.Position, mousePos.Value) end)
+        UpdateCamera(true, char.Head, char.Humanoid, mousePos.Value)
+    end
+end)
